@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-#    Copyright (C) 2017  andi, derpeter
+#    Copyright (C) 2019 andi, derpeter
 #    andi@muc.ccc.de
 #    derpeter@berlin.ccc.de
 #
@@ -196,7 +196,6 @@ class YoutubeAPI:
 
         logging.debug('guessed mime type for file %s as %s and its size as %u bytes' % (file, mimetype, size))
 
-
         # https://developers.google.com/youtube/v3/docs/videos#resource
         r = requests.post(
             'https://www.googleapis.com/upload/youtube/v3/videos',
@@ -297,7 +296,6 @@ class YoutubeAPI:
     def add_to_playlist(self, video_id: str, playlist_id: str):
         """
         documentation: https://developers.google.com/youtube/v3/docs/playlistItems/insert
-        :param access_token:
         :param video_id:
         :param playlist_id:
         """

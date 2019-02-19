@@ -25,6 +25,7 @@ import operator
 import paramiko
 import requests
 import glob
+import urllib.request
 
 from model.ticket_module import Ticket
 from api_client.select_thumbnail import calc_score

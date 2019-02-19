@@ -1,4 +1,4 @@
-#    Copyright (C) 2017  derpeter
+#    Copyright (C) 2019  derpeter
 #    derpeter@berlin.ccc.de
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,6 @@ class Ticket:
     This class is inspired by the c3tt ticket system. It handles all information we got from the tracker
     and adds some additional information.
     """
-
     def __init__(self, ticket, ticket_id):
         if not ticket:
             raise TicketException('Ticket was None type')
@@ -32,8 +31,87 @@ class Ticket:
         # project properties
         self.acronym = self._validate_('Project.Slug')
 
+        # general publishing properties
+        self.publishing_path = self._validate_('Publishing.Path')
+
+    def _validate_(self, key, optional=False):
+        value = None
+        if key in self.__tracker_ticket:
+            value = self.__tracker_ticket[key]
+            if not value:
+                logging.debug(key + ' is empty in ticket')
+                raise TicketException(key + ' is empty in ticket')
+            else:
+                value = str(value)
+        else:
+            if optional:
+                logging.warning("optional property was not in ticket: " + key)
+            else:
+                logging.debug(key + ' is missing in ticket')
+                raise TicketException(key + ' is missing in ticket')
+        return value
+
+
+class RecordingTicket(Ticket):
+    """
+    This is ticket we use for the download worker. This ticket has less information than an encoding ticket.
+    """
+    def __init__(self, ticket, ticket_id):
+        Ticket.__init__(self, ticket, ticket_id)
+
+        # recording ticket properties
+        self.download_url = self._validate_('Fahrplan.VideoDownloadURL')
+        self.fuse_path = self._validate_('Processing.Path.Raw') + self._validate_('Project.Slug')
+
+        # fahrplan properties
+        self.room = self._validate_('Fahrplan.Room')
+        self.fahrplan_id = self._validate_('Fahrplan.ID')
+        self.language = self._get_language_from_string_(self._validate_('Fahrplan.Language'))
+
+    @staticmethod
+    def _get_language_from_string_(lang):
+        # https://en.wikipedia.org/wiki/List_of_ISO_639-2_codes
+        lang_map = {
+            'ar': 'ara',
+            'de': 'deu',
+            'deutsch': 'deu',
+            'en': 'eng',
+            'englisch': 'eng',
+            'es': 'spa',
+            'fr': 'fra',
+            'gsw': 'gsw',
+            'zh': 'chi'
+        }
+
+        out = []
+        for l in lang.split('-'):
+            if l in lang_map:
+                out.append(lang_map[l])
+            else:
+                raise TicketException('language ' + l + ' not in language map')
+        return '-'.join(out)
+
+
+class PublishingTicket(Ticket):
+    """
+    This is a ticket we use for publishing
+    """
+    def __init__(self, ticket, ticket_id):
+        Ticket.__init__(self, ticket, ticket_id)
+
+        # handle languages
+        self.language_template = self._validate_('Encoding.LanguageTemplate')
+        self.language_index = self._validate_('Encoding.LanguageIndex', True)
+        # special case languages: if Encoding.Language is present, it overrides Record.Language:
+        if 'Encoding.Language' in ticket:
+            self.language = self._validate_('Encoding.Language')
+            self.languages = dict(enumerate(self._validate_('Encoding.Language').split('-')))
+        else:
+            self.language = self._validate_('Record.Language')
+            self.languages = {int(k.split('.')[-1]): self._validate_(k) for k in ticket.keys() if k.startswith('Record.Language.')}
+
         # encoding profile properties
-        if self._validate_('EncodingProfile.IsMaster') == 'yes':
+        if self._validate_('EncodingProfile.IsMaster') is 'yes':
             self.master = True
         else:
             self.master = False
@@ -41,9 +119,6 @@ class Ticket:
         self.profile_slug = self._validate_('EncodingProfile.Slug')
         self.filename = self._validate_('EncodingProfile.Basename') + "." + self.profile_extension
         self.folder = self._validate_('EncodingProfile.MirrorFolder')
-
-        # encoding properties
-        self.language_index = self._validate_('Encoding.LanguageIndex', True)
 
         # fahrplan properties
         self.slug = self._validate_('Fahrplan.Slug')
@@ -69,27 +144,16 @@ class Ticket:
         self.url = self._validate_('Fahrplan.URL', True)
         self.date = self._validate_('Fahrplan.Date')
 
-        # recording ticket properties
-
-        # special case languages: if Encoding.Language is present, it overrides Record.Language:
-        if 'Encoding.Language' in ticket:
-            self.language = self._validate_('Encoding.Language')
-            self.languages = dict(enumerate(self._validate_('Encoding.Language').split('-')))
-        else:
-            self.language = self._validate_('Record.Language')
-            self.languages = {int(k.split('.')[-1]): self._validate_(k) for k in self.__tracker_ticket.keys() if k.startswith('Record.Language.')}
-        self.language_template = self._validate_('Encoding.LanguageTemplate')
-
         # general publishing properties
         self.publishing_path = self._validate_('Publishing.Path')
         self.publishing_tags = self._validate_('Publishing.Tags', True)
 
         # youtube properties
-        if self._validate_('Publishing.YouTube.EnableProfile') == 'yes':
+        if self._validate_('Publishing.YouTube.EnableProfile') is 'yes':
             self.profile_youtube_enable = True
         else:
             self.profile_youtube_enable = False
-        if self._validate_('Publishing.YouTube.Enable') == 'yes':
+        if self._validate_('Publishing.YouTube.Enable') is 'yes':
             self.youtube_enable = True
         else:
             self.youtube_enable = False
@@ -114,11 +178,11 @@ class Ticket:
             self.youtube_urls = ''
 
         # voctoweb properties
-        if self._validate_('Publishing.Voctoweb.EnableProfile') == 'yes':
+        if self._validate_('Publishing.Voctoweb.EnableProfile') is 'yes':
             self.profile_voctoweb_enable = True
         else:
             self.profile_voctoweb_enable = False
-        if self._validate_('Publishing.Voctoweb.Enable') == 'yes':
+        if self._validate_('Publishing.Voctoweb.Enable') is 'yes':
             self.voctoweb_enable = True
         else:
             self.voctoweb_enable = False
@@ -141,33 +205,16 @@ class Ticket:
             self.voctoweb_event_id = self._validate_('Voctoweb.EventId', True)
 
         # twitter properties
-        if self._validate_('Publishing.Twitter.Enable') == 'yes':
+        if self._validate_('Publishing.Twitter.Enable') is 'yes':
             self.twitter_enable = True
         else:
             self.twitter_enable = False
 
         # mastodon properties
-        if self._validate_('Publishing.Mastodon.Enable') == 'yes':
+        if self._validate_('Publishing.Mastodon.Enable') is 'yes':
             self.mastodon_enable = True
         else:
             self.mastodon_enable = False
-
-    def _validate_(self, key, optional=False):
-        value = None
-        if key in self.__tracker_ticket:
-            value = self.__tracker_ticket[key]
-            if not value and not optional:
-                logging.debug(key + ' is empty in ticket')
-                raise TicketException(key + ' is empty in ticket')
-            else:
-                value = str(value)
-        else:
-            if optional:
-                logging.debug("optional property was not in ticket: " + key)
-            else:
-                logging.debug(key + ' is missing in ticket')
-                raise TicketException(key + ' is missing in ticket')
-        return value
 
 
 class TicketException(Exception):

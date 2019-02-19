@@ -30,7 +30,6 @@ class C3TTClient:
     host: client hostname (will be taken from local host if set to None)
     url: tracker url (without the rpc)
     """
-
     def __init__(self, url, group, host, secret):
         self.url = url + "rpc"
         self.group = group
